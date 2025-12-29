@@ -1,19 +1,25 @@
 {
   "version": 2,
   "functions": {
-    "api/hedra/[...path].js": {
+    "api/**/*.js": {
       "maxDuration": 60
     }
   },
-  "headers": [
+  "routes": [
     {
-      "source": "/api/hedra/(.*)",
-      "headers": [
-        { "key": "Access-Control-Allow-Origin", "value": "*" },
-        { "key": "Access-Control-Allow-Methods", "value": "GET, POST, PUT, DELETE, OPTIONS" },
-        { "key": "Access-Control-Allow-Headers", "value": "Content-Type, X-API-Key, Authorization" },
-        { "key": "Access-Control-Max-Age", "value": "86400" }
-      ]
+      "src": "/api/hedra/(.*)",
+      "methods": ["OPTIONS"],
+      "headers": {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type, X-API-Key, Authorization, Accept",
+        "Access-Control-Max-Age": "86400"
+      },
+      "status": 204
+    },
+    {
+      "src": "/api/hedra/(.*)",
+      "dest": "/api/hedra/$1"
     }
   ]
 }
