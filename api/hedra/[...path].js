@@ -1,100 +1,99 @@
 // Hedra API Proxy with full CORS support
-// Handles all request types including multipart file uploads
+// File: api/hedra/[...path].js
 
 export const config = {
   api: {
-    bodyParser: false, // Required for handling file uploads
+    bodyParser: false,
   },
 };
 
+async function getRawBody(req) {
+  const chunks = [];
+  for await (const chunk of req) {
+    chunks.push(chunk);
+  }
+  return Buffer.concat(chunks);
+}
+
 export default async function handler(req, res) {
-  // Set CORS headers FIRST - before anything else
+  // Set CORS headers FIRST
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-API-Key, Authorization');
   res.setHeader('Access-Control-Max-Age', '86400');
 
-  // Handle preflight OPTIONS request immediately
+  // Handle preflight
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
 
   try {
-    // Get the path after /api/hedra/
-    const { path } = req.query;
-    const hedraPath = Array.isArray(path) ? path.join('/') : path;
+    // Extract path from the URL directly
+    // URL will be like: /api/hedra/assets or /api/hedra/assets/123/upload
+    const urlPath = req.url || '';
+    const hedraPath = urlPath.replace(/^\/api\/hedra\/?/, '').split('?')[0];
+    
     const hedraUrl = `https://api.hedra.com/web-app/public/${hedraPath}`;
+    
+    console.log(`[HEDRA PROXY] ${req.method} -> ${hedraUrl}`);
 
-    console.log(`[HEDRA PROXY] ${req.method} ${hedraUrl}`);
-
-    // Get API key from request header
+    // Get API key
     const apiKey = req.headers['x-api-key'];
     if (!apiKey) {
       return res.status(401).json({ error: 'Missing X-API-Key header' });
     }
 
-    // Prepare headers for Hedra
+    // Build headers for Hedra
     const hedraHeaders = {
       'X-API-Key': apiKey,
     };
 
-    // Handle the request body
-    let body;
-    const contentType = req.headers['content-type'] || '';
-
+    // Handle request body for non-GET requests
+    let body = null;
     if (req.method !== 'GET' && req.method !== 'HEAD') {
-      if (contentType.includes('multipart/form-data')) {
-        // For file uploads, pass through the raw body and content-type
+      const contentType = req.headers['content-type'] || '';
+      
+      // Get raw body
+      body = await getRawBody(req);
+      
+      // Pass through content-type
+      if (contentType) {
         hedraHeaders['Content-Type'] = contentType;
-        body = await getRawBody(req);
-      } else if (contentType.includes('application/json')) {
-        // For JSON, parse and re-stringify
-        hedraHeaders['Content-Type'] = 'application/json';
-        body = await getRawBody(req);
-      } else {
-        // Other content types
-        hedraHeaders['Content-Type'] = contentType;
-        body = await getRawBody(req);
       }
+      
+      console.log(`[HEDRA PROXY] Body size: ${body.length} bytes, Content-Type: ${contentType}`);
     }
 
     // Make request to Hedra
-    const hedraResponse = await fetch(hedraUrl, {
+    const fetchOptions = {
       method: req.method,
       headers: hedraHeaders,
-      body: body,
-    });
-
-    // Get response data
-    const responseText = await hedraResponse.text();
+    };
     
-    // Log response status
-    console.log(`[HEDRA PROXY] Response: ${hedraResponse.status}`);
-
-    // Forward Hedra's content-type
-    const hedraContentType = hedraResponse.headers.get('content-type');
-    if (hedraContentType) {
-      res.setHeader('Content-Type', hedraContentType);
+    if (body && body.length > 0) {
+      fetchOptions.body = body;
     }
 
-    // Return response with same status code
-    return res.status(hedraResponse.status).send(responseText);
+    const hedraResponse = await fetch(hedraUrl, fetchOptions);
+    
+    console.log(`[HEDRA PROXY] Hedra responded: ${hedraResponse.status}`);
+
+    // Get response
+    const responseData = await hedraResponse.text();
+
+    // Forward content-type
+    const responseContentType = hedraResponse.headers.get('content-type');
+    if (responseContentType) {
+      res.setHeader('Content-Type', responseContentType);
+    }
+
+    return res.status(hedraResponse.status).send(responseData);
 
   } catch (error) {
-    console.error('[HEDRA PROXY] Error:', error);
+    console.error('[HEDRA PROXY] Error:', error.message);
     return res.status(500).json({ 
       error: 'Proxy error', 
       message: error.message 
     });
   }
-}
-
-// Helper function to get raw request body
-function getRawBody(req) {
-  return new Promise((resolve, reject) => {
-    const chunks = [];
-    req.on('data', (chunk) => chunks.push(chunk));
-    req.on('end', () => resolve(Buffer.concat(chunks)));
-    req.on('error', reject);
-  });
 }
