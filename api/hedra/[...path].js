@@ -7,29 +7,21 @@ export const config = {
   },
 };
 
-async function getRawBody(req) {
-  const chunks = [];
-  for await (const chunk of req) {
-    chunks.push(chunk);
-  }
-  return Buffer.concat(chunks);
-}
-
 export default async function handler(req, res) {
-  // Set CORS headers FIRST
+  // Set CORS headers FIRST - before anything else
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-API-Key, Authorization');
   res.setHeader('Access-Control-Max-Age', '86400');
 
-  // Handle preflight
+  // Handle preflight OPTIONS request IMMEDIATELY - before any other processing
   if (req.method === 'OPTIONS') {
+    console.log('[HEDRA PROXY] OPTIONS preflight - returning 200');
     return res.status(200).end();
   }
 
   try {
     // Extract path from the URL directly
-    // URL will be like: /api/hedra/assets or /api/hedra/assets/123/upload
     const urlPath = req.url || '';
     const hedraPath = urlPath.replace(/^\/api\/hedra\/?/, '').split('?')[0];
     
@@ -96,4 +88,13 @@ export default async function handler(req, res) {
       message: error.message 
     });
   }
+}
+
+async function getRawBody(req) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    req.on('data', (chunk) => chunks.push(chunk));
+    req.on('end', () => resolve(Buffer.concat(chunks)));
+    req.on('error', (err) => reject(err));
+  });
 }
