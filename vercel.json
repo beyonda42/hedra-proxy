@@ -1,25 +1,8 @@
 {
-  "version": 2,
-  "functions": {
-    "api/**/*.js": {
-      "maxDuration": 60
-    }
-  },
-  "routes": [
-    {
-      "src": "/api/hedra/(.*)",
-      "methods": ["OPTIONS"],
-      "headers": {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type, X-API-Key, Authorization, Accept",
-        "Access-Control-Max-Age": "86400"
-      },
-      "status": 204
-    },
-    {
-      "src": "/api/hedra/(.*)",
-      "dest": "/api/hedra/$1"
-    }
-  ]
+  "version": 2
 }
+```
+
+### 4. After deploy, test this URL in browser:
+```
+https://hedra-proxy-blush.vercel.app/api/hedra?path=models
